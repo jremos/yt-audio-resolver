@@ -7,7 +7,7 @@ import yt_dlp
 
 def cari_audio(q):
     # =========================================================================
-    # 1. COBA CARI DI YOUTUBE (MENGGUNAKAN PROTOKOL TV / MWEB)
+    # 1. CARI DI YOUTUBE (PRIORITASKAN FORMAT CODEC OPUS)
     # =========================================================================
     ydl_opts_yt = {
         'quiet': True,
@@ -21,7 +21,7 @@ def cari_audio(q):
         }
     }
     
-    # Periksa dan salin cookies ke folder /tmp jika tersedia
+    # Salin cookies ke folder /tmp jika tersedia
     src_cookie = os.path.join(os.path.dirname(__file__), 'cookies.txt')
     if not os.path.exists(src_cookie):
         src_cookie = os.path.join(os.path.dirname(__file__), '..', 'cookies.txt')
@@ -39,9 +39,22 @@ def cari_audio(q):
             if 'entries' in info and len(info['entries']) > 0:
                 entry = info['entries'][0]
                 formats = entry.get('formats', [])
+                
+                # PRIORITAS 1: Cari format yang codec audionya OPUS murni (misal format 251 di YouTube)
                 for f in reversed(formats):
                     u = f.get('url', '')
-                    # Pastikan bukan .m3u8 agar ESP32 bisa memutar langsung
+                    acodec = str(f.get('acodec', '')).lower()
+                    ext = str(f.get('ext', '')).lower()
+                    if '.m3u8' not in u and ('opus' in acodec or 'opus' in ext or ext == 'ogg') and u:
+                        return {
+                            'title': entry.get('title'),
+                            'url': u,
+                            'source': 'YouTube (Opus)'
+                        }
+                
+                # PRIORITAS 2: Jika tidak ada label opus, cari format audio apa pun yang bukan .m3u8
+                for f in reversed(formats):
+                    u = f.get('url', '')
                     if '.m3u8' not in u and f.get('acodec') != 'none' and u:
                         return {
                             'title': entry.get('title'),
@@ -49,10 +62,10 @@ def cari_audio(q):
                             'source': 'YouTube'
                         }
     except Exception:
-        pass # Jika YouTube membatasi, otomatis lanjut ke SoundCloud
+        pass # Lanjut ke SoundCloud jika YouTube dibatasi
 
     # =========================================================================
-    # 2. OTOMATIS BERALIH KE SOUNDCLOUD (100% BEBAS DARI BLOKIR BOT)
+    # 2. CARI DI SOUNDCLOUD (FALLBACK BEBAS BLOKIR BOT)
     # =========================================================================
     ydl_opts_sc = {
         'quiet': True,
@@ -69,14 +82,24 @@ def cari_audio(q):
                 
                 audio_url = None
                 
-                # Prioritas 1: Ambil format MP3 progressive langsung (bukan .m3u8)
+                # Prioritas 1: Cari format dengan codec Opus / Ogg
                 for f in formats:
                     u = f.get('url', '')
-                    if '.m3u8' not in u and (f.get('ext') == 'mp3' or 'http_mp3' in f.get('format_id', '')):
+                    acodec = str(f.get('acodec', '')).lower()
+                    ext = str(f.get('ext', '')).lower()
+                    if '.m3u8' not in u and ('opus' in acodec or 'opus' in ext or ext == 'ogg') and u:
                         audio_url = u
                         break
 
-                # Prioritas 2: Ambil format audio murni apa pun yang bukan .m3u8
+                # Prioritas 2: Cari format direct HTTP apa pun yang bukan .m3u8
+                if not audio_url:
+                    for f in formats:
+                        u = f.get('url', '')
+                        if '.m3u8' not in u and (f.get('ext') == 'mp3' or 'http' in f.get('format_id', '')) and u:
+                            audio_url = u
+                            break
+
+                # Prioritas 3: Format apa pun yang bukan .m3u8
                 if not audio_url:
                     for f in formats:
                         u = f.get('url', '')
@@ -84,7 +107,6 @@ def cari_audio(q):
                             audio_url = u
                             break
 
-                # Fallback terakhir jika hanya ada link utama
                 if not audio_url:
                     audio_url = entry.get('url')
 

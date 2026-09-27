@@ -18,7 +18,7 @@ class handler(BaseHTTPRequestHandler):
             return
 
         ydl_opts = {
-            'format': 'bestaudio[ext=m4a]/bestaudio/best',
+            'format': 'bestaudio/best',
             'default_search': 'ytsearch1',
             'quiet': True,
             'noplaylist': True,

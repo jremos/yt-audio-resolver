@@ -20,7 +20,7 @@ class handler(BaseHTTPRequestHandler):
             'default_search': 'ytsearch1',
             'quiet': True,
             'noplaylist': True,
-            'extract_flat': False
+            'extract_flat': False,
             'extractor_args': {
                 'youtube': {
                     'player_client': ['android', 'ios']

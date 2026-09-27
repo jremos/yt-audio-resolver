@@ -2,6 +2,7 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import json
 import os
+import shutil
 import yt_dlp
 
 class handler(BaseHTTPRequestHandler):
@@ -16,11 +17,6 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({'status': 'Server YouTube Resolver Aktif', 'contoh': '/api?q=denny+caknan'}).encode())
             return
 
-        # Cari lokasi file cookies.txt
-        cookie_path = os.path.join(os.path.dirname(__file__), 'cookies.txt')
-        if not os.path.exists(cookie_path):
-            cookie_path = os.path.join(os.path.dirname(__file__), '..', 'cookies.txt')
-
         ydl_opts = {
             'format': 'bestaudio[ext=m4a]/bestaudio/best',
             'default_search': 'ytsearch1',
@@ -29,9 +25,18 @@ class handler(BaseHTTPRequestHandler):
             'extract_flat': False
         }
 
-        # Pasang cookies jika file ditemukan
-        if os.path.exists(cookie_path):
-            ydl_opts['cookiefile'] = cookie_path
+        # Cari cookies.txt dari repo, lalu salin ke folder /tmp yang diizinkan tulis di Vercel
+        src_cookie = os.path.join(os.path.dirname(__file__), 'cookies.txt')
+        if not os.path.exists(src_cookie):
+            src_cookie = os.path.join(os.path.dirname(__file__), '..', 'cookies.txt')
+
+        tmp_cookie = '/tmp/cookies.txt'
+        if os.path.exists(src_cookie):
+            try:
+                shutil.copyfile(src_cookie, tmp_cookie)
+                ydl_opts['cookiefile'] = tmp_cookie
+            except Exception as e:
+                pass
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:

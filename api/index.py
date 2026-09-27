@@ -1,8 +1,6 @@
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import json
-import os
-import shutil
 import yt_dlp
 
 class handler(BaseHTTPRequestHandler):
@@ -17,36 +15,23 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({'status': 'Server YouTube Resolver Aktif', 'contoh': '/api?q=denny+caknan'}).encode())
             return
 
-        # Salin cookies ke folder /tmp
-        src_cookie = os.path.join(os.path.dirname(__file__), 'cookies.txt')
-        if not os.path.exists(src_cookie):
-            src_cookie = os.path.join(os.path.dirname(__file__), '..', 'cookies.txt')
-
-        tmp_cookie = '/tmp/cookies.txt'
-        has_cookie = False
-        if os.path.exists(src_cookie):
-            try:
-                shutil.copyfile(src_cookie, tmp_cookie)
-                has_cookie = True
-            except Exception:
-                pass
-
-        # PENTING: Tanpa filter format kaku agar tidak muncul error "Requested format not available"
+        # TRIK SAKTI: Menyamar sebagai Web Embed Google (Bebas Bot Check & Bebas Cookies)
         ydl_opts = {
             'default_search': 'ytsearch1',
             'quiet': True,
             'noplaylist': True,
             'extract_flat': False,
             'nocheckcertificate': True,
+            'http_headers': {
+                'Referer': 'https://www.google.com/',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            },
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios']
+                    'player_client': ['web_embedded']
                 }
             }
         }
-
-        if has_cookie:
-            ydl_opts['cookiefile'] = tmp_cookie
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -54,23 +39,15 @@ class handler(BaseHTTPRequestHandler):
                 if 'entries' in info and len(info['entries']) > 0:
                     entry = info['entries'][0]
                     
-                    # Script Python memilih link audio terbaik secara cerdas
                     audio_url = None
                     formats = entry.get('formats', [])
                     
-                    # Prioritas 1: Format Audio murni (tanpa video)
+                    # Cari format audio yang tersedia
                     for f in reversed(formats):
-                        if f.get('acodec') != 'none' and f.get('vcodec') == 'none' and f.get('url'):
+                        if f.get('acodec') != 'none' and f.get('url'):
                             audio_url = f.get('url')
                             break
-                    
-                    # Prioritas 2: Format apa pun yang memiliki audio
-                    if not audio_url:
-                        for f in reversed(formats):
-                            if f.get('acodec') != 'none' and f.get('url'):
-                                audio_url = f.get('url')
-                                break
-                    
+
                     if not audio_url:
                         audio_url = entry.get('url')
 

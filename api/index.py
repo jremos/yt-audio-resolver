@@ -1,10 +1,14 @@
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import json
+import os
+import shutil
 import yt_dlp
 
 def cari_audio(q):
-    # 1. COBA CARI DI YOUTUBE DENGAN PROTOKOL TV / MWEB
+    # =========================================================================
+    # 1. COBA CARI DI YOUTUBE (MENGGUNAKAN PROTOKOL TV / MWEB)
+    # =========================================================================
     ydl_opts_yt = {
         'quiet': True,
         'noplaylist': True,
@@ -16,6 +20,19 @@ def cari_audio(q):
             }
         }
     }
+    
+    # Periksa dan salin cookies ke folder /tmp jika tersedia
+    src_cookie = os.path.join(os.path.dirname(__file__), 'cookies.txt')
+    if not os.path.exists(src_cookie):
+        src_cookie = os.path.join(os.path.dirname(__file__), '..', 'cookies.txt')
+    tmp_cookie = '/tmp/cookies.txt'
+    if os.path.exists(src_cookie):
+        try:
+            shutil.copyfile(src_cookie, tmp_cookie)
+            ydl_opts_yt['cookiefile'] = tmp_cookie
+        except Exception:
+            pass
+
     try:
         with yt_dlp.YoutubeDL(ydl_opts_yt) as ydl:
             info = ydl.extract_info(f"ytsearch1:{q}", download=False)
@@ -23,16 +40,20 @@ def cari_audio(q):
                 entry = info['entries'][0]
                 formats = entry.get('formats', [])
                 for f in reversed(formats):
-                    if f.get('acodec') != 'none' and f.get('url'):
+                    u = f.get('url', '')
+                    # Pastikan bukan .m3u8 agar ESP32 bisa memutar langsung
+                    if '.m3u8' not in u and f.get('acodec') != 'none' and u:
                         return {
                             'title': entry.get('title'),
-                            'url': f.get('url'),
+                            'url': u,
                             'source': 'YouTube'
                         }
     except Exception:
-        pass # Jika YouTube membatasi, langsung lanjut ke SoundCloud
+        pass # Jika YouTube membatasi, otomatis lanjut ke SoundCloud
 
+    # =========================================================================
     # 2. OTOMATIS BERALIH KE SOUNDCLOUD (100% BEBAS DARI BLOKIR BOT)
+    # =========================================================================
     ydl_opts_sc = {
         'quiet': True,
         'noplaylist': True,
@@ -44,22 +65,40 @@ def cari_audio(q):
             info = ydl.extract_info(f"scsearch1:{q}", download=False)
             if 'entries' in info and len(info['entries']) > 0:
                 entry = info['entries'][0]
-                url = entry.get('url')
-                if not url and 'formats' in entry:
-                    for f in reversed(entry['formats']):
-                        if f.get('url'):
-                            url = f.get('url')
+                formats = entry.get('formats', [])
+                
+                audio_url = None
+                
+                # Prioritas 1: Ambil format MP3 progressive langsung (bukan .m3u8)
+                for f in formats:
+                    u = f.get('url', '')
+                    if '.m3u8' not in u and (f.get('ext') == 'mp3' or 'http_mp3' in f.get('format_id', '')):
+                        audio_url = u
+                        break
+
+                # Prioritas 2: Ambil format audio murni apa pun yang bukan .m3u8
+                if not audio_url:
+                    for f in formats:
+                        u = f.get('url', '')
+                        if '.m3u8' not in u and u:
+                            audio_url = u
                             break
-                if url:
+
+                # Fallback terakhir jika hanya ada link utama
+                if not audio_url:
+                    audio_url = entry.get('url')
+
+                if audio_url:
                     return {
                         'title': entry.get('title'),
-                        'url': url,
+                        'url': audio_url,
                         'source': 'SoundCloud'
                     }
     except Exception as e:
         return {'error': str(e)}
 
     return None
+
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -81,6 +120,7 @@ class handler(BaseHTTPRequestHandler):
         if hasil and 'url' in hasil:
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps(hasil).encode())
         else:

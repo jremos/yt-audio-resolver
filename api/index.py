@@ -9,10 +9,10 @@ class handler(BaseHTTPRequestHandler):
         q = query_params.get('q', [''])[0]
 
         if not q:
-            self.send_response(400)
+            self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            self.wfile.write(json.dumps({'error': 'Parameter q kosong'}).encode())
+            self.wfile.write(json.dumps({'status': 'Server YouTube Resolver Aktif', 'contoh': '/api?q=denny+caknan'}).encode())
             return
 
         ydl_opts = {
@@ -41,7 +41,7 @@ class handler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            self.wfile.write(json.dumps({'error': 'Tidak ditemukan'}).encode())
+            self.wfile.write(json.dumps({'error': 'Lagu tidak ditemukan'}).encode())
         except Exception as e:
             self.send_response(500)
             self.send_header('Content-type', 'application/json')

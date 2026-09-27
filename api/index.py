@@ -20,11 +20,11 @@ def cari_audio(q):
                 url = entry.get('url')
                 
                 # Cari link stream yang langsung bisa diakses
-                if not url and 'formats' in entry:
-                    for f in entry['formats']:
-                        if f.get('url'):
-                            url = f.get('url')
-                            break
+                for f in entry.get('formats', []):
+                    u = f.get('url', '')
+                    if '.m3u8' not in u and u:
+                        url = u
+                        break
                             
                 if url:
                     return {

@@ -1,6 +1,7 @@
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import json
+import os
 import yt_dlp
 
 class handler(BaseHTTPRequestHandler):
@@ -15,18 +16,22 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({'status': 'Server YouTube Resolver Aktif', 'contoh': '/api?q=denny+caknan'}).encode())
             return
 
+        # Cari lokasi file cookies.txt
+        cookie_path = os.path.join(os.path.dirname(__file__), 'cookies.txt')
+        if not os.path.exists(cookie_path):
+            cookie_path = os.path.join(os.path.dirname(__file__), '..', 'cookies.txt')
+
         ydl_opts = {
             'format': 'bestaudio[ext=m4a]/bestaudio/best',
             'default_search': 'ytsearch1',
             'quiet': True,
             'noplaylist': True,
-            'extract_flat': False,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'ios']
-                }
-            }
+            'extract_flat': False
         }
+
+        # Pasang cookies jika file ditemukan
+        if os.path.exists(cookie_path):
+            ydl_opts['cookiefile'] = cookie_path
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
